@@ -29,3 +29,40 @@ def ramp_throttle(start, end, duration=1.0, steps=50):
         current += step_size
         motor.value = current
         sleep(step_delay)
+    
+    # Ensure we hit the exact end value
+    motor.value = end
+
+try:
+    # Arming sequence - send minimum throttle for 2 seconds
+    print("Arming ESC...")
+    motor.value = MIN_THROTTLE
+    sleep(2)
+    
+    print("Running motor test...")
+    while True:
+        # Ramp up to medium throttle (7.5%)
+        print("Ramping up...")
+        ramp_throttle(MIN_THROTTLE, 0.075, duration=2.0)
+        
+        # Hold at medium speed
+        print("Holding...")
+        sleep(2)
+        
+        # Ramp back down to minimum
+        print("Ramping down...")
+        ramp_throttle(0.075, MIN_THROTTLE, duration=2.0)
+        
+        # Hold at minimum
+        sleep(2)
+
+except KeyboardInterrupt:
+    print("Stopping motor...")
+    # Ramp down safely before stopping
+    current_value = motor.value
+    if current_value > MIN_THROTTLE:
+        ramp_throttle(current_value, MIN_THROTTLE, duration=1.0)
+    else:
+        motor.value = MIN_THROTTLE
+    sleep(1)
+    motor.close()
