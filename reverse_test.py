@@ -1,5 +1,3 @@
-# reverse_test.py
-
 from gpiozero import PWMLED
 from time import sleep
 
