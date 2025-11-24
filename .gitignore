@@ -77,10 +77,10 @@ config/secrets.yaml
 *.pcap
 
 # Scratch/work-in-progress files
-scratch/*
-!scratch/shared/
-!scratch/README.md
-scripts/experiments/
+# scratch/*
+# !scratch/shared/
+# !scratch/README.md
+# scripts/experiments/
 
 # Jupyter notebooks (if you use them)
 *.ipynb_checkpoints/
