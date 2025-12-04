@@ -65,6 +65,7 @@ class WebServer:
 
                 # Check MAC whitelist
                 allowed, client_mac = self.wifi_ap.check_mac_whitelist(client_ip)
+                print(f"Request from {client_ip} (MAC: {client_mac}) - {'ALLOWED' if allowed else 'BLOCKED'}")
                 if not allowed:
                     response = self._page_blocked(client_ip, client_mac)
                     conn.send(response.encode())

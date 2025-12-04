@@ -1,7 +1,7 @@
 # config.py - Central configuration for battlebot
 
 # WiFi Access Point Settings
-AP_SSID = 'BattleBot-Alpha'
+AP_SSID = 'Monster Book of Monsters'
 AP_PASSWORD = 'battlebot123'  # Min 8 characters
 AP_CHANNEL = 11  # Less crowded channel
 
@@ -72,5 +72,5 @@ FAILSAFE_TIMEOUT_MS = 500  # Stop if no command for 500ms
 ENABLE_LOW_BATTERY_CUTOFF = True
 
 # Debug Settings
-DEBUG_MODE = False
+DEBUG_MODE = True
 VERBOSE_LOGGING = False

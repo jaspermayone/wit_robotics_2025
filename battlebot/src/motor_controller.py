@@ -46,12 +46,12 @@ class MotorController:
         self.last_command_time = time.ticks_ms()
         self.armed = False
 
-        # Initialize stopped
-        print("Arming ESCs...")
-        self.motor_left.arm(hold_seconds=MOTOR_ARM_TIME)
-        self.motor_right.arm(hold_seconds=0.1)  # Already waited for left
-        self.weapon.arm(hold_seconds=0.1)
-        print("ESCs armed and ready")
+        # ESC arming disabled for testing
+        # print("Arming ESCs...")
+        # self.motor_left.arm(hold_seconds=MOTOR_ARM_TIME)
+        # self.motor_right.arm(hold_seconds=0.1)
+        # self.weapon.arm(hold_seconds=0.1)
+        # print("ESCs armed and ready")
 
         self.stop_all()
 
@@ -147,9 +147,11 @@ class MotorController:
 
     def disarm(self):
         """Disarm the weapon - weapon will not spin"""
+        was_armed = self.armed
         self.armed = False
         self.set_weapon(0)
-        print("Weapon DISARMED")
+        if was_armed:
+            print("Weapon DISARMED")
 
     def stop_all(self):
         """Emergency stop - all motors to zero"""

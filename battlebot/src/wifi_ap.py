@@ -51,7 +51,14 @@ class WiFiAccessPoint:
 
             current_macs = set()
 
-            for mac_bytes, rssi in stations:
+            for station in stations:
+                # Handle different formats: (mac_bytes, rssi) or just mac_bytes
+                if isinstance(station, tuple) and len(station) >= 2:
+                    mac_bytes, rssi = station[0], station[1]
+                else:
+                    mac_bytes = station
+                    rssi = None
+
                 mac = ':'.join(['%02x' % b for b in mac_bytes])
                 current_macs.add(mac)
 
@@ -63,10 +70,11 @@ class WiFiAccessPoint:
                         'last_seen': current_time,
                         'rssi': rssi
                     }
-                    print(f"📱 Device connected: {mac}")
+                    print(f"Device connected: {mac}")
                 else:
                     self.connected_clients[mac]['last_seen'] = current_time
-                    self.connected_clients[mac]['rssi'] = rssi
+                    if rssi is not None:
+                        self.connected_clients[mac]['rssi'] = rssi
 
             # Remove devices that are no longer connected (not seen for 30 seconds)
             macs_to_remove = []

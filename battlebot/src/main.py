@@ -1,10 +1,9 @@
 # main.py - BattleBot main control loop
 
-from battlebot.src import web_server
 import time
 import machine
 from config import *
-from logger import BinaryLogger
+# from logger import BinaryLogger  # Disabled - no SD card
 from motor_controller import MotorController
 from telemetry import TelemetryCollector
 from wifi_ap import WiFiAccessPoint
@@ -26,8 +25,8 @@ class BattleBot:
         self.blink_status(3)
 
         # Initialize subsystems
-        print("Initializing logger...")
-        self.logger = BinaryLogger()
+        # Logger disabled - no SD card
+        self.logger = None
 
         print("Initializing motor controller...")
         self.motors = MotorController()
@@ -75,10 +74,12 @@ class BattleBot:
                 # Handle web requests (non-blocking)
                 self.web_server.handle_requests()
 
-                # Check motor failsafe
-                if self.motors.check_failsafe():
-                    print("⚠ FAILSAFE TRIGGERED")
-                    self.status_led.value(1)  # LED on to indicate failsafe
+                # Check motor failsafe (disabled for testing)
+                # if self.motors.check_failsafe():
+                #     print("⚠ FAILSAFE TRIGGERED")
+                #     self.status_led.value(1)  # LED on to indicate failsafe
+                if False:
+                    pass
                 else:
                     # Blink LED to show alive
                     if self.loop_count % 500 == 0:
@@ -91,26 +92,26 @@ class BattleBot:
                     self.telemetry.update_all(loop_time)
                     self.last_telemetry_time = current_time
 
-                # Log data at configured rate
-                if time.ticks_diff(current_time, self.last_log_time) >= self.log_interval_ms:
-                    self._log_current_state()
-                    self.last_log_time = current_time
+                # Log data at configured rate (disabled - no SD card)
+                # if time.ticks_diff(current_time, self.last_log_time) >= self.log_interval_ms:
+                #     self._log_current_state()
+                #     self.last_log_time = current_time
 
                 # Print diagnostics
-                if DEBUG_MODE and time.ticks_diff(current_time, self.last_diagnostic_time) >= self.diagnostic_interval_ms:
-                    self._print_diagnostics()
-                    self.last_diagnostic_time = current_time
+                # if DEBUG_MODE and time.ticks_diff(current_time, self.last_diagnostic_time) >= self.diagnostic_interval_ms:
+                #     self._print_diagnostics()
+                #     self.last_diagnostic_time = current_time
 
-                # Check for critical battery
-                if ENABLE_LOW_BATTERY_CUTOFF and self.telemetry.is_battery_critical():
-                    print("⚠ CRITICAL BATTERY - EMERGENCY STOP")
-                    self.motors.stop_all()
-                    self.blink_status(10)
+                # # Check for critical battery (disabled for testing)
+                # # if ENABLE_LOW_BATTERY_CUTOFF and self.telemetry.is_battery_critical():
+                # #     print("⚠ CRITICAL BATTERY - EMERGENCY STOP")
+                # #     self.motors.stop_all()
+                # #     self.blink_status(10)
 
-                self.loop_count += 1
+                # self.loop_count += 1
 
-                # Small delay to prevent tight loop (adjust as needed)
-                time.sleep_ms(1)
+                # # Small delay to prevent tight loop (adjust as needed)
+                # time.sleep_ms(1)
 
         except KeyboardInterrupt:
             print("\n\nShutdown requested...")
@@ -145,7 +146,6 @@ class BattleBot:
         """Print diagnostic information to console"""
         motor_status = self.motors.get_status()
         telemetry = self.telemetry.get_summary()
-        log_stats = self.logger.get_stats()
 
         # Calculate loop rate
         elapsed = time.ticks_diff(time.ticks_ms(), self.loop_start_time)
@@ -155,7 +155,6 @@ class BattleBot:
         print(f"Motors: L={motor_status['left']:+4d}% R={motor_status['right']:+4d}% W={motor_status['weapon']:3d}%")
         print(f"Battery: {telemetry['Battery']}")
         print(f"CPU: {telemetry['CPU Temp']}")
-        print(f"Log: Match {log_stats['match']} - {log_stats['entries']} entries ({log_stats['size_kb']:.1f} KB)")
         print(f"Armed: {motor_status['armed']} | Failsafe: {motor_status['failsafe_ok']}")
 
     def blink_status(self, count):
@@ -171,8 +170,9 @@ class BattleBot:
         print("Stopping motors...")
         self.motors.stop_all()
 
-        print("Closing log file...")
-        self.logger.close()
+        if self.logger:
+            print("Closing log file...")
+            self.logger.close()
 
         print("Shutdown complete.")
         self.blink_status(3)
