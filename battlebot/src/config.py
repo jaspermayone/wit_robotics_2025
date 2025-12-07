@@ -1,17 +1,14 @@
 # config.py - Central configuration for battlebot
 
+# Import secrets (passwords, etc) - not committed to git
+from secrets import AP_PASSWORD, USERS
+
 # WiFi Access Point Settings
 AP_SSID = 'Monster Book of Monsters'
-AP_PASSWORD = 'battlebot123'  # Min 8 characters
-AP_CHANNEL = 11  # Less crowded channel
-
-ALLOWED_MACS = [
-  '70:8c:f2:b1:a6:66',  # Jasper's laptop
-]
+AP_CHANNEL = 11
 
 # Authentication
-ADMIN_PASSWORD = 'admin123'  # Change this!
-SESSION_TIMEOUT = 3600  # 1 hour in seconds
+SESSION_TIMEOUT = 3600  # 1 hour
 
 # Hardware Pin Assignments
 PIN_SD_CS = 17    # SD card chip select

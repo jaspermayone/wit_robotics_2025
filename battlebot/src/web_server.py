@@ -60,37 +60,21 @@ class WebServer:
                 method, path, _ = lines[0].split(' ')
                 client_ip = addr[0]
 
-                # Update IP for connected device
+                # Track client
                 self.wifi_ap.update_client_ip(client_ip)
-
-                # Check MAC whitelist
-                allowed, client_mac = self.wifi_ap.check_mac_whitelist(client_ip)
-                print(f"Request from {client_ip} (MAC: {client_mac}) - {'ALLOWED' if allowed else 'BLOCKED'}")
-                if not allowed:
-                    response = self._page_blocked(client_ip, client_mac)
-                    conn.send(response.encode())
-                    conn.close()
-                    return
 
                 # Route request
                 response = self._route_request(method, path, client_ip, request)
 
-                # Send response
+                # Send response in chunks for large responses
                 if response:
-                    # Send in chunks for large responses
                     data = response.encode()
-                    print(f"Sending {len(data)} bytes for {path}")
-                    chunk_size = 1024
-                    for i in range(0, len(data), chunk_size):
-                        conn.send(data[i:i+chunk_size])
-                else:
-                    print(f"Warning: No response generated for {path}")
+                    for i in range(0, len(data), 1024):
+                        conn.send(data[i:i+1024])
 
             except Exception as e:
                 if DEBUG_MODE:
-                    import sys
-                    print(f"Request handling error: {e}")
-                    sys.print_exception(e)
+                    print(f"Request error: {e}")
             finally:
                 conn.close()
 
@@ -140,40 +124,34 @@ class WebServer:
 
     def _handle_login(self, client_ip, request):
         """Handle login POST request"""
-        # Extract password from POST body
         lines = request.split('\r\n')
         body = lines[-1]
 
-        # Simple form parsing (password=xxx)
-        if 'password=' in body:
-            password = body.split('password=')[1].split('&')[0]
+        # Parse form: user=xxx&password=xxx
+        user = ''
+        password = ''
+        for part in body.split('&'):
+            if part.startswith('user='):
+                user = part[5:]
+            elif part.startswith('password='):
+                password = part[9:]
 
-            if password == ADMIN_PASSWORD:
-                # Get MAC address for this IP
-                client_mac = None
-                for mac, info in self.wifi_ap.connected_clients.items():
-                    if info['ip'] == client_ip:
-                        client_mac = mac
-                        break
+        # Check credentials
+        if user in USERS and USERS[user] == password:
+            self.sessions[client_ip] = {
+                'authenticated': True,
+                'user': user,
+                'time': time.time(),
+            }
+            if DEBUG_MODE:
+                print(f"Login: {user}")
+            return self._response_redirect('/')
 
-                # Create session
-                self.sessions[client_ip] = {
-                    'authenticated': True,
-                    'time': time.time(),
-                    'token': str(time.time()),
-                    'mac': client_mac
-                }
-
-                print(f"✓ Login: {client_ip} ({client_mac})")
-                return self._response_redirect('/')
-
-        # Failed login
-        return self._page_login(error="Invalid password")
+        return self._page_login(error="Invalid credentials")
 
     def _logout(self, client_ip):
         """Logout user"""
         if client_ip in self.sessions:
-            print(f"✓ Logout: {client_ip}")
             del self.sessions[client_ip]
 
     def _page_index(self, authenticated):
@@ -181,12 +159,8 @@ class WebServer:
         if not authenticated:
             return self._page_login()
 
-        try:
-            motor_status = self.motor_controller.get_status()
-            telemetry = self.telemetry.get_summary()
-        except Exception as e:
-            print(f"Error getting status: {e}")
-            return self._response_error("Status error")
+        motor_status = self.motor_controller.get_status()
+        telemetry = self.telemetry.get_summary()
 
         # Pre-compute conditional values to avoid complex f-string expressions
         status_class = 'good' if motor_status['failsafe_ok'] else 'critical'
@@ -199,20 +173,19 @@ class WebServer:
         for mac, info in self.wifi_ap.connected_clients.items():
             session_active = info['ip'] in self.sessions if info['ip'] else False
             ip_text = info['ip'] if info['ip'] else '--'
-            rssi_text = str(info.get('rssi', '--'))
-            badge_class = 'badge active' if session_active else 'badge'
+            # Handle pseudo-MAC (ip:x.x.x.x) format
+            mac_text = '--' if mac.startswith('ip:') else mac
+            rssi_text = str(info.get('rssi')) if info.get('rssi') else '--'
+            badge_class = 'badge on' if session_active else 'badge'
             status_text = 'ACTIVE' if session_active else 'IDLE'
-            devices_html += f"""
-                <tr>
-                    <td style="font-size:0.85em">{mac}</td>
-                    <td>{ip_text}</td>
-                    <td><span class="{badge_class}">{status_text}</span></td>
-                    <td>{rssi_text} dBm</td>
-                </tr>
-            """
+            devices_html += f"""<tr>
+<td style="font-size:.8em">{mac_text}</td>
+<td>{ip_text}</td>
+<td><span class="{badge_class}">{status_text}</span></td>
+</tr>"""
 
         if not devices_html:
-            devices_html = '<tr><td colspan="4" style="text-align:center;color:#606070">NO DEVICES</td></tr>'
+            devices_html = '<tr><td colspan="3" style="text-align:center;color:#666">NO CLIENTS</td></tr>'
 
         html = f"""HTTP/1.1 200 OK
 Content-Type: text/html
@@ -268,8 +241,8 @@ a{{color:#0ff}}
 <div><div class="mv" id="mr">{motor_status['right']}</div><div class="ml">RIGHT</div><div class="bar"><div class="bf" id="br" style="width:{abs(motor_status['right'])}%"></div></div></div>
 <div><div class="mv" id="mw">{motor_status['weapon']}</div><div class="ml">WEAPON</div><div class="bar"><div class="bf" id="bw" style="width:{motor_status['weapon']}%"></div></div></div>
 </div></div></div>
-<div class="p w"><div class="ph">NETWORK [{device_count}]</div><div class="pb">
-<table><tr><th>MAC</th><th>IP</th><th>STATUS</th></tr>{devices_html}</table>
+<div class="p w"><div class="ph">CLIENTS [{device_count}]</div><div class="pb">
+<table><tr><th>MAC</th><th>IP</th><th>SESSION</th></tr>{devices_html}</table>
 </div></div>
 </div>
 <p style="text-align:center;margin-top:15px"><a href="/logout">[LOGOUT]</a></p>
@@ -318,43 +291,19 @@ body{{font-family:monospace;background:#0a0a0f;color:#e0e0e0;min-height:100vh;di
 .box{{background:#12121a;border:1px solid #333;padding:30px;width:100%;max-width:320px;text-align:center}}
 h1{{color:#0ff;font-size:1.2em;letter-spacing:3px;margin-bottom:5px;text-shadow:0 0 10px #0ff4}}
 .sub{{color:#666;font-size:.7em;letter-spacing:2px;margin-bottom:20px}}
-input{{width:100%;padding:12px;background:#0a0a0f;border:1px solid #333;color:#0ff;font-family:monospace;margin-bottom:15px}}
+input{{width:100%;padding:12px;background:#0a0a0f;border:1px solid #333;color:#0ff;font-family:monospace;margin-bottom:10px}}
 input:focus{{border-color:#0ff;outline:none;box-shadow:0 0 10px #0ff4}}
-button{{width:100%;padding:12px;background:transparent;border:1px solid #0ff;color:#0ff;font-family:monospace;cursor:pointer;letter-spacing:2px}}
+button{{width:100%;padding:12px;background:transparent;border:1px solid #0ff;color:#0ff;font-family:monospace;cursor:pointer;letter-spacing:2px;margin-top:5px}}
 button:hover{{background:#0ff;color:#0a0a0f}}
 </style></head>
 <body><div class="box">
 <h1>BATTLEBOT</h1>
 <p class="sub">AUTHENTICATION REQUIRED</p>
 <form method="POST" action="/login">
-<input type="password" name="password" placeholder="Access code" autofocus>
-<button type="submit">[AUTHENTICATE]</button>
+<input type="text" name="user" placeholder="Username" autofocus autocomplete="off">
+<input type="password" name="password" placeholder="Password">
+<button type="submit">[LOGIN]</button>
 {err}</form></div></body></html>"""
-        return html
-
-    def _page_blocked(self, ip, mac):
-        """Access denied page for blocked MACs"""
-        html = f"""HTTP/1.1 403 Forbidden
-Content-Type: text/html
-Connection: close
-
-<!DOCTYPE html><html><head><title>DENIED</title>
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-*{{margin:0;padding:0;box-sizing:border-box}}
-body{{font-family:monospace;background:#0a0a0f;color:#e0e0e0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}}
-.box{{background:#12121a;border:2px solid #f22;padding:30px;width:100%;max-width:350px;text-align:center}}
-h1{{color:#f22;font-size:1.1em;letter-spacing:4px;margin-bottom:15px}}
-p{{color:#666;font-size:.8em;margin-bottom:20px}}
-.r{{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #222;font-size:.8em}}
-.l{{color:#666}}.v{{color:#f22}}
-</style></head>
-<body><div class="box">
-<h1>ACCESS DENIED</h1>
-<p>DEVICE NOT AUTHORIZED</p>
-<div class="r"><span class="l">MAC</span><span class="v">{mac}</span></div>
-<div class="r"><span class="l">IP</span><span class="v">{ip}</span></div>
-</div></body></html>"""
         return html
 
     def _api_status(self):
