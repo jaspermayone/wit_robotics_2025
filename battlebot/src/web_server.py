@@ -76,11 +76,21 @@ class WebServer:
                 response = self._route_request(method, path, client_ip, request)
 
                 # Send response
-                conn.send(response.encode())
+                if response:
+                    # Send in chunks for large responses
+                    data = response.encode()
+                    print(f"Sending {len(data)} bytes for {path}")
+                    chunk_size = 1024
+                    for i in range(0, len(data), chunk_size):
+                        conn.send(data[i:i+chunk_size])
+                else:
+                    print(f"Warning: No response generated for {path}")
 
             except Exception as e:
                 if DEBUG_MODE:
+                    import sys
                     print(f"Request handling error: {e}")
+                    sys.print_exception(e)
             finally:
                 conn.close()
 
@@ -171,138 +181,155 @@ class WebServer:
         if not authenticated:
             return self._page_login()
 
-        motor_status = self.motor_controller.get_status()
-        telemetry = self.telemetry.get_summary()
+        try:
+            motor_status = self.motor_controller.get_status()
+            telemetry = self.telemetry.get_summary()
+        except Exception as e:
+            print(f"Error getting status: {e}")
+            return self._response_error("Status error")
+
+        # Pre-compute conditional values to avoid complex f-string expressions
+        status_class = 'good' if motor_status['failsafe_ok'] else 'critical'
+        failsafe_text = 'OK' if motor_status['failsafe_ok'] else 'TRIGGERED'
+        weapon_text = 'ARMED' if motor_status['armed'] else 'DISARMED'
+        device_count = len(self.wifi_ap.connected_clients)
 
         # Build connected devices HTML
         devices_html = ""
         for mac, info in self.wifi_ap.connected_clients.items():
             session_active = info['ip'] in self.sessions if info['ip'] else False
-            uptime = int(time.time() - info['connected_time'])
+            ip_text = info['ip'] if info['ip'] else '--'
+            rssi_text = str(info.get('rssi', '--'))
+            badge_class = 'badge active' if session_active else 'badge'
+            status_text = 'ACTIVE' if session_active else 'IDLE'
             devices_html += f"""
                 <tr>
-                    <td>{mac}</td>
-                    <td>{info['ip'] or 'N/A'}</td>
-                    <td>{'🟢 Active' if session_active else '⚪ Connected'}</td>
-                    <td>{uptime}s</td>
-                    <td>{info.get('rssi', 'N/A')} dBm</td>
+                    <td style="font-size:0.85em">{mac}</td>
+                    <td>{ip_text}</td>
+                    <td><span class="{badge_class}">{status_text}</span></td>
+                    <td>{rssi_text} dBm</td>
                 </tr>
             """
+
+        if not devices_html:
+            devices_html = '<tr><td colspan="4" style="text-align:center;color:#606070">NO DEVICES</td></tr>'
 
         html = f"""HTTP/1.1 200 OK
 Content-Type: text/html
 Connection: close
 
-<!DOCTYPE html>
-<html>
-<head>
-    <title>BattleBot Monitor</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta http-equiv="refresh" content="2">
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 20px; background: #1a1a1a; color: #fff; }}
-        .container {{ max-width: 900px; margin: 0 auto; }}
-        .status-box {{ background: #2a2a2a; padding: 15px; margin: 10px 0; border-radius: 5px; }}
-        .critical {{ background: #ff4444; }}
-        .warning {{ background: #ffaa00; }}
-        .good {{ background: #44ff44; color: #000; }}
-        h1 {{ color: #00ffff; }}
-        h2 {{ color: #00ffff; font-size: 1.2em; margin-top: 0; }}
-        .telemetry {{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }}
-        table {{ width: 100%; border-collapse: collapse; margin-top: 10px; }}
-        th, td {{ padding: 8px; text-align: left; border-bottom: 1px solid #444; }}
-        th {{ color: #00ffff; }}
-        .monitor-only {{ background: #ffaa00; color: #000; padding: 10px; border-radius: 5px; text-align: center; font-weight: bold; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🤖 BattleBot Monitor</h1>
-
-        <div class="monitor-only">
-            📊 MONITORING ONLY - No control features available via web interface
-        </div>
-
-        <div class="status-box {'good' if motor_status['failsafe_ok'] else 'critical'}">
-            <h2>System Status</h2>
-            <p><strong>Failsafe:</strong> {'✓ OK' if motor_status['failsafe_ok'] else '✗ TRIGGERED'}</p>
-            <p><strong>Weapon:</strong> {'🔴 ARMED' if motor_status['armed'] else '⚪ DISARMED'}</p>
-        </div>
-
-        <div class="status-box">
-            <h2>Telemetry</h2>
-            <div class="telemetry">
-                <p><strong>Battery:</strong> {telemetry['Battery']}</p>
-                <p><strong>CPU Temp:</strong> {telemetry['CPU Temp']}</p>
-                <p><strong>Uptime:</strong> {telemetry['Uptime']}</p>
-                <p><strong>Loop Time:</strong> {telemetry['Loop Time']}</p>
-            </div>
-        </div>
-
-        <div class="status-box">
-            <h2>Motor Status</h2>
-            <p><strong>Left:</strong> {motor_status['left']}%</p>
-            <p><strong>Right:</strong> {motor_status['right']}%</p>
-            <p><strong>Weapon:</strong> {motor_status['weapon']}%</p>
-        </div>
-
-        <div class="status-box">
-            <h2>Connected Devices ({len(self.wifi_ap.connected_clients)})</h2>
-            <table>
-                <tr>
-                    <th>MAC Address</th>
-                    <th>IP</th>
-                    <th>Status</th>
-                    <th>Uptime</th>
-                    <th>Signal</th>
-                </tr>
-                {devices_html if devices_html else '<tr><td colspan="5">No devices connected</td></tr>'}
-            </table>
-        </div>
-
-        <p><a href="/logout" style="color: #00ffff;">Logout</a></p>
-    </div>
-</body>
-</html>"""
+<!DOCTYPE html><html><head><title>BATTLEBOT</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:monospace;background:#0a0a0f;color:#e0e0e0;padding:15px}}
+.c{{max-width:800px;margin:0 auto}}
+h1{{color:#0ff;font-size:1.2em;letter-spacing:3px;padding:10px;border:1px solid #333;margin-bottom:15px;text-shadow:0 0 10px #0ff4}}
+.dot{{display:inline-block;width:8px;height:8px;background:#0f6;border-radius:50%;margin-right:8px;box-shadow:0 0 8px #0f6}}
+.dot.err{{background:#f22;box-shadow:0 0 8px #f22}}
+.g{{display:grid;grid-template-columns:1fr 1fr;gap:10px}}
+.p{{background:#12121a;border:1px solid #333;margin-bottom:10px}}
+.p.w{{grid-column:span 2}}
+.ph{{background:#0ff2;padding:6px 12px;font-size:.7em;letter-spacing:2px;color:#0ff;border-bottom:1px solid #333}}
+.pb{{padding:12px}}
+.r{{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #fff1}}
+.l{{color:#666;font-size:.75em}}
+.v{{color:#0ff;font-weight:bold}}
+.v.ok{{color:#0f6}}
+.v.w{{color:#f60}}
+.v.cr{{color:#f22}}
+.mg{{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center}}
+.mv{{font-size:1.8em;color:#0ff}}
+.ml{{font-size:.6em;color:#666;letter-spacing:1px}}
+.bar{{height:4px;background:#333;margin-top:4px}}
+.bf{{height:100%;background:linear-gradient(90deg,#0ff,#0f6);transition:width .2s}}
+table{{width:100%;font-size:.75em}}
+th{{text-align:left;color:#666;padding:6px;border-bottom:1px solid #333}}
+td{{padding:6px}}
+.badge{{padding:2px 6px;font-size:.7em;background:#0ff2;color:#0ff;border:1px solid #0ff}}
+.badge.on{{background:#0f62;color:#0f6;border-color:#0f6}}
+a{{color:#0ff}}
+@media(max-width:600px){{.g{{grid-template-columns:1fr}}.p.w{{grid-column:span 1}}.mg{{grid-template-columns:1fr}}}}
+</style></head>
+<body><div class="c">
+<h1><span class="dot" id="dot"></span>BATTLEBOT <span id="st" style="float:right;font-size:.6em">LIVE</span></h1>
+<div class="g">
+<div class="p" id="sp"><div class="ph">SYSTEM</div><div class="pb">
+<div class="r"><span class="l">FAILSAFE</span><span class="v ok" id="fs">{failsafe_text}</span></div>
+<div class="r"><span class="l">WEAPON</span><span class="v" id="wp">{weapon_text}</span></div>
+</div></div>
+<div class="p"><div class="ph">TELEMETRY</div><div class="pb">
+<div class="r"><span class="l">BATTERY</span><span class="v" id="bat">{telemetry['Battery']}</span></div>
+<div class="r"><span class="l">CPU</span><span class="v" id="cpu">{telemetry['CPU Temp']}</span></div>
+<div class="r"><span class="l">UPTIME</span><span class="v" id="up">{telemetry['Uptime']}</span></div>
+</div></div>
+<div class="p w"><div class="ph">MOTORS</div><div class="pb"><div class="mg">
+<div><div class="mv" id="ml">{motor_status['left']}</div><div class="ml">LEFT</div><div class="bar"><div class="bf" id="bl" style="width:{abs(motor_status['left'])}%"></div></div></div>
+<div><div class="mv" id="mr">{motor_status['right']}</div><div class="ml">RIGHT</div><div class="bar"><div class="bf" id="br" style="width:{abs(motor_status['right'])}%"></div></div></div>
+<div><div class="mv" id="mw">{motor_status['weapon']}</div><div class="ml">WEAPON</div><div class="bar"><div class="bf" id="bw" style="width:{motor_status['weapon']}%"></div></div></div>
+</div></div></div>
+<div class="p w"><div class="ph">NETWORK [{device_count}]</div><div class="pb">
+<table><tr><th>MAC</th><th>IP</th><th>STATUS</th></tr>{devices_html}</table>
+</div></div>
+</div>
+<p style="text-align:center;margin-top:15px"><a href="/logout">[LOGOUT]</a></p>
+</div>
+<script>
+function u(){{fetch('/api/status').then(r=>r.json()).then(d=>{{
+document.getElementById('dot').className='dot';
+document.getElementById('st').textContent='LIVE';
+document.getElementById('ml').textContent=d.motors.left;
+document.getElementById('mr').textContent=d.motors.right;
+document.getElementById('mw').textContent=d.motors.weapon;
+document.getElementById('bl').style.width=Math.abs(d.motors.left)+'%';
+document.getElementById('br').style.width=Math.abs(d.motors.right)+'%';
+document.getElementById('bw').style.width=d.motors.weapon+'%';
+var fs=document.getElementById('fs');
+fs.textContent=d.motors.failsafe_ok?'OK':'FAIL';
+fs.className=d.motors.failsafe_ok?'v ok':'v cr';
+var wp=document.getElementById('wp');
+wp.textContent=d.motors.armed?'ARMED':'SAFE';
+wp.className=d.motors.armed?'v w':'v';
+if(d.telemetry){{var t=d.telemetry;
+document.getElementById('bat').textContent=t.battery_voltage.toFixed(2)+'V';
+document.getElementById('cpu').textContent=t.cpu_temp.toFixed(1)+'C';
+document.getElementById('up').textContent=(t.uptime_ms/1000).toFixed(0)+'s';
+}}}}).catch(e=>{{
+document.getElementById('dot').className='dot err';
+document.getElementById('st').textContent='OFFLINE';
+}});}}
+setInterval(u,500);
+</script></body></html>"""
 
         return html
 
     def _page_login(self, error=""):
         """Login page"""
+        err = '<p style="color:#f22;margin-top:10px;text-align:center">' + error + '</p>' if error else ''
         html = f"""HTTP/1.1 200 OK
 Content-Type: text/html
 Connection: close
 
-<!DOCTYPE html>
-<html>
-<head>
-    <title>BattleBot Login</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px;
-               background: #1a1a1a; color: #fff; display: flex;
-               justify-content: center; align-items: center; min-height: 100vh; }}
-        .login-box {{ background: #2a2a2a; padding: 30px; border-radius: 10px;
-                     box-shadow: 0 0 20px rgba(0,255,255,0.3); }}
-        h1 {{ color: #00ffff; margin-top: 0; }}
-        input {{ padding: 10px; font-size: 16px; width: 100%; margin: 10px 0; }}
-        button {{ padding: 15px; font-size: 16px; width: 100%;
-                 background: #00ffff; border: none; cursor: pointer; }}
-        .error {{ color: #ff4444; }}
-    </style>
-</head>
-<body>
-    <div class="login-box">
-        <h1>🤖 BattleBot Monitor</h1>
-        <form method="POST" action="/login">
-            <input type="password" name="password" placeholder="Enter password" autofocus>
-            <button type="submit">Login</button>
-            {f'<p class="error">{error}</p>' if error else ''}
-        </form>
-    </div>
-</body>
-</html>"""
-
+<!DOCTYPE html><html><head><title>BATTLEBOT</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:monospace;background:#0a0a0f;color:#e0e0e0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}}
+.box{{background:#12121a;border:1px solid #333;padding:30px;width:100%;max-width:320px;text-align:center}}
+h1{{color:#0ff;font-size:1.2em;letter-spacing:3px;margin-bottom:5px;text-shadow:0 0 10px #0ff4}}
+.sub{{color:#666;font-size:.7em;letter-spacing:2px;margin-bottom:20px}}
+input{{width:100%;padding:12px;background:#0a0a0f;border:1px solid #333;color:#0ff;font-family:monospace;margin-bottom:15px}}
+input:focus{{border-color:#0ff;outline:none;box-shadow:0 0 10px #0ff4}}
+button{{width:100%;padding:12px;background:transparent;border:1px solid #0ff;color:#0ff;font-family:monospace;cursor:pointer;letter-spacing:2px}}
+button:hover{{background:#0ff;color:#0a0a0f}}
+</style></head>
+<body><div class="box">
+<h1>BATTLEBOT</h1>
+<p class="sub">AUTHENTICATION REQUIRED</p>
+<form method="POST" action="/login">
+<input type="password" name="password" placeholder="Access code" autofocus>
+<button type="submit">[AUTHENTICATE]</button>
+{err}</form></div></body></html>"""
         return html
 
     def _page_blocked(self, ip, mac):
@@ -311,31 +338,23 @@ Connection: close
 Content-Type: text/html
 Connection: close
 
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Access Denied</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <style>
-        body {{ font-family: Arial, sans-serif; margin: 0; padding: 20px;
-               background: #1a1a1a; color: #fff; display: flex;
-               justify-content: center; align-items: center; min-height: 100vh; }}
-        .error-box {{ background: #ff4444; padding: 30px; border-radius: 10px;
-                     box-shadow: 0 0 20px rgba(255,0,0,0.5); }}
-        h1 {{ margin-top: 0; }}
-        code {{ background: #000; padding: 5px; border-radius: 3px; }}
-    </style>
-</head>
-<body>
-    <div class="error-box">
-        <h1>🚫 Access Denied</h1>
-        <p>Your device is not authorized to access this BattleBot.</p>
-        <p>MAC: <code>{mac}</code></p>
-        <p>IP: <code>{ip}</code></p>
-    </div>
-</body>
-</html>"""
-
+<!DOCTYPE html><html><head><title>DENIED</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:monospace;background:#0a0a0f;color:#e0e0e0;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}}
+.box{{background:#12121a;border:2px solid #f22;padding:30px;width:100%;max-width:350px;text-align:center}}
+h1{{color:#f22;font-size:1.1em;letter-spacing:4px;margin-bottom:15px}}
+p{{color:#666;font-size:.8em;margin-bottom:20px}}
+.r{{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #222;font-size:.8em}}
+.l{{color:#666}}.v{{color:#f22}}
+</style></head>
+<body><div class="box">
+<h1>ACCESS DENIED</h1>
+<p>DEVICE NOT AUTHORIZED</p>
+<div class="r"><span class="l">MAC</span><span class="v">{mac}</span></div>
+<div class="r"><span class="l">IP</span><span class="v">{ip}</span></div>
+</div></body></html>"""
         return html
 
     def _api_status(self):
@@ -394,3 +413,11 @@ Content-Type: text/html
 Connection: close
 
 <html><body><h1>404 Not Found</h1></body></html>"""
+
+    def _response_error(self, msg):
+        """Simple error response"""
+        return f"""HTTP/1.1 500 Error
+Content-Type: text/html
+Connection: close
+
+<html><body><h1>Error: {msg}</h1></body></html>"""

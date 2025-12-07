@@ -132,7 +132,7 @@ class TelemetryCollector:
         """Get human-readable summary of telemetry"""
         return {
             'Battery': f"{self.last_telemetry['battery_voltage']:.2f}V ({self.last_telemetry['battery_percent']}%)",
-            'CPU Temp': f"{self.last_telemetry['cpu_temp']:.1f}°C",
+            'CPU Temp': f"{self.last_telemetry['cpu_temp']:.1f}C",
             'Uptime': f"{self.last_telemetry['uptime_ms'] / 1000:.1f}s",
-            'Loop Time': f"{self.last_telemetry['loop_time_us']}µs",
+            'Loop Time': f"{self.last_telemetry['loop_time_us']}us",
         }

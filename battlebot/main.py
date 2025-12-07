@@ -1,5 +1,5 @@
 # Bootstrap - adds src to path and runs the bot
 import sys
-sys.path.append('/battlebot/src')
+sys.path.append('/src')
 
-exec(open('/battlebot/src/main.py').read())
+exec(open('/src/main.py').read())

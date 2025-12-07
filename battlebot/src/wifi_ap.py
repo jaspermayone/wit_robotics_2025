@@ -43,24 +43,58 @@ class WiFiAccessPoint:
 
         return ap
 
+    def _bytes_to_mac(self, data):
+        """Convert various byte formats to MAC address string"""
+        parts = []
+        for b in data:
+            if isinstance(b, int):
+                parts.append('%02x' % b)
+            elif isinstance(b, bytes):
+                parts.append('%02x' % b[0])
+            else:
+                parts.append('%02x' % int(b))
+        return ':'.join(parts)
+
     def update_connected_devices(self):
         """Update the list of connected devices from AP"""
         try:
             stations = self.ap.status('stations')
+
+            # Check if stations is valid (Pico W might not support this or return None/empty)
+            if not stations:
+                return
+
+            # If stations is a single bytes object (raw response), we can't parse it
+            if isinstance(stations, (bytes, bytearray)):
+                if DEBUG_MODE:
+                    print(f"  Warning: stations returned as bytes: {stations}")
+                return
+
+            if not hasattr(stations, '__iter__'):
+                return
+
             current_time = time.time()
 
             current_macs = set()
 
             for station in stations:
-                # Handle different formats: (mac_bytes, rssi) or just mac_bytes
-                if isinstance(station, tuple) and len(station) >= 2:
-                    mac_bytes, rssi = station[0], station[1]
-                else:
-                    mac_bytes = station
-                    rssi = None
+                try:
+                    # Handle different formats: (mac_bytes, rssi) or just mac_bytes
+                    if isinstance(station, tuple) and len(station) >= 2:
+                        mac_bytes, rssi = station[0], station[1]
+                        # Convert rssi from bytes if needed
+                        if isinstance(rssi, bytes):
+                            rssi = int.from_bytes(rssi, 'little', signed=True) if rssi else None
+                    else:
+                        mac_bytes = station
+                        rssi = None
 
-                mac = ':'.join(['%02x' % b for b in mac_bytes])
-                current_macs.add(mac)
+                    mac = self._bytes_to_mac(mac_bytes)
+                    current_macs.add(mac)
+                except Exception as parse_err:
+                    if DEBUG_MODE:
+                        print(f"  Skipping station, parse error: {parse_err}, data: {station}")
+                    continue
 
                 # Add or update device
                 if mac not in self.connected_clients:
@@ -89,6 +123,13 @@ class WiFiAccessPoint:
         except Exception as e:
             if DEBUG_MODE:
                 print(f"Error updating connected devices: {e}")
+                # Debug: print raw station format to understand the issue
+                try:
+                    stations = self.ap.status('stations')
+                    if stations:
+                        print(f"  Debug - station format: {type(stations[0])}, value: {stations[0]}")
+                except:
+                    pass
 
     def check_mac_whitelist(self, client_ip):
         """
