@@ -1,7 +1,7 @@
 #!/bin/bash
 cd "$(dirname "$0")"
 
-UF2_FILE="build/xbox_controller.uf2"
+UF2_FILE="build/monster_book.uf2"
 
 # Find the Pico volume
 PICO_VOL=$(ls -d /Volumes/RP2350 /Volumes/RPI-RP2 2>/dev/null | head -1)

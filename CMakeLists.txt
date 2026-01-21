@@ -12,7 +12,7 @@ set(BTSTACK_ROOT ${PICO_SDK_PATH}/lib/btstack)
 # note: this must happen before project()
 include(pico_sdk_import.cmake)
 
-project(xbox_controller C CXX ASM)
+project(monster_book C CXX ASM)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
@@ -22,10 +22,17 @@ pico_sdk_init()
 add_executable(${PROJECT_NAME}
     src/main.c
     src/my_platform.c
+    src/motor.c
+    src/motor_controller.c
+    src/telemetry.c
+    src/wifi_ap.c
+    src/web_server.c
+    src/dhcpserver/dhcpserver.c
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     src
+    src/dhcpserver
     ${BLUEPAD32_ROOT}/src/components/bluepad32/include
 )
 
@@ -39,9 +46,11 @@ include_directories(${BTSTACK_ROOT}/src)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
     pico_stdlib
-    pico_cyw43_arch_none
+    pico_cyw43_arch_lwip_threadsafe_background
     pico_btstack_classic
     pico_btstack_cyw43
+    hardware_pwm
+    hardware_adc
     bluepad32
 )
 

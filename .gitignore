@@ -84,3 +84,6 @@ config/secrets.yaml
 
 # Jupyter notebooks (if you use them)
 *.ipynb_checkpoints/
+
+# Secrets (encrypted version committed as secrets.h.age)
+src/secrets.h

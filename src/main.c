@@ -1,14 +1,17 @@
 // =============================================================================
-// Xbox Controller Reader - Main Entry Point
-// Pico 2 W + Bluepad32 Bluetooth Controller Support
+// Monster Book of Monsters - Main Entry Point
+// Pico 2 W + Bluepad32 Bluetooth + WiFi Dashboard
 // =============================================================================
 
-#include <btstack_run_loop.h>  // BTstack event loop (handles all BT communication)
-#include <pico/cyw43_arch.h>   // CYW43 WiFi/BT chip driver (controls the wireless hardware)
-#include <pico/stdlib.h>       // Pico standard library (stdio, GPIO, etc.)
+#include <btstack_run_loop.h>  // BTstack event loop
+#include <pico/cyw43_arch.h>   // CYW43 WiFi/BT chip driver
+#include <pico/stdlib.h>       // Pico standard library
 #include <uni.h>               // Bluepad32 main header
 
-#include "sdkconfig.h"         // Bluepad32 configuration defines
+#include "config.h"            // Central configuration
+#include "sdkconfig.h"         // Bluepad32 configuration
+#include "telemetry.h"         // Battery, CPU temp monitoring
+#include "wifi_ap.h"           // WiFi access point
 
 // Verify we're using custom platform mode (required for Pico W)
 #ifndef CONFIG_BLUEPAD32_PLATFORM_CUSTOM
@@ -16,47 +19,72 @@
 #endif
 
 // Forward declaration - implemented in my_platform.c
-// This returns our custom platform callbacks
 struct uni_platform* get_my_platform(void);
 
 /**
  * Main entry point
  *
  * Initialization sequence:
- * 1. stdio_init_all() - Set up USB serial for printf output
- * 2. cyw43_arch_init() - Initialize the CYW43 wireless chip (enables Bluetooth)
- * 3. uni_platform_set_custom() - Register our callback functions with Bluepad32
- * 4. uni_init() - Initialize Bluepad32 library
- * 5. btstack_run_loop_execute() - Start the BTstack event loop (never returns)
+ * 1. stdio_init_all() - USB serial for printf
+ * 2. cyw43_arch_init() - Initialize WiFi/BT chip
+ * 3. wifi_ap_init() - Start WiFi access point
+ * 4. telemetry_init() - Start battery/temp monitoring
+ * 5. uni_platform_set_custom() - Register Bluepad32 callbacks
+ * 6. uni_init() - Initialize Bluepad32
+ * 7. btstack_run_loop_execute() - Start event loop (never returns)
+ *
+ * Note: Motor controller and web server are initialized in my_platform.c
+ * after Bluetooth is fully ready.
  */
 int main() {
-    // Initialize USB serial output so printf() works
+    // Initialize USB serial output
     // Connect with: screen /dev/tty.usbmodem* 115200
     stdio_init_all();
 
-    // Initialize the CYW43 wireless chip
-    // This powers on the Bluetooth/WiFi hardware on the Pico W
-    // Returns non-zero on failure
+    // Small delay to allow USB serial to connect
+    sleep_ms(1000);
+
+    printf("\n\n");
+    printf("==================================================\n");
+    printf("  %s\n", ROBOT_NAME);
+    printf("  Initializing...\n");
+    printf("==================================================\n\n");
+
+    // Initialize the CYW43 wireless chip (WiFi + Bluetooth)
+    printf("Initializing CYW43 wireless chip...\n");
     if (cyw43_arch_init()) {
-        printf("Failed to initialize CYW43 wireless chip!\n");
+        printf("FATAL: Failed to initialize CYW43!\n");
         return -1;
     }
+    printf("CYW43 ready\n");
 
-    // Turn on LED while we're setting up
-    // LED will turn off once Bluetooth is ready (in my_platform.c)
+    // Turn on LED while setting up
     cyw43_arch_gpio_put(CYW43_WL_GPIO_LED_PIN, 1);
 
-    // Register our custom platform callbacks BEFORE initializing Bluepad32
-    // This tells Bluepad32 which functions to call for various events
+    // Start WiFi access point
+    printf("\n");
+    if (!wifi_ap_init()) {
+        printf("WARNING: WiFi AP failed to start\n");
+        // Continue anyway - Bluetooth control will still work
+    }
+
+    // Initialize telemetry (battery monitoring, CPU temp)
+    printf("\n");
+    telemetry_init();
+
+    // Register our custom platform callbacks with Bluepad32
+    printf("\n");
+    printf("Initializing Bluetooth...\n");
     uni_platform_set_custom(get_my_platform());
 
     // Initialize Bluepad32 library
-    // Parameters: argc, argv (we pass 0, NULL since we're not using command line args)
     uni_init(0, NULL);
 
     // Start the BTstack event loop
     // This handles all Bluetooth communication and NEVER RETURNS
-    // All our code now runs via callbacks defined in my_platform.c
+    // Motor controller and web server are initialized in my_platform.c
+    // once Bluetooth is fully ready
+    printf("Starting BTstack event loop...\n\n");
     btstack_run_loop_execute();
 
     // We never get here
