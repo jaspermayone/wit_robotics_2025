@@ -19,10 +19,13 @@ class WiFiAccessPoint:
         ap = network.WLAN(network.AP_IF)
         ap.active(True)
 
-        # Configure AP
-        ap.config(essid=AP_SSID)
-        ap.config(password=AP_PASSWORD)
-        ap.config(channel=AP_CHANNEL)
+        # Configure AP - must set essid, password and security together on Pico W
+        ap.config(
+            essid=AP_SSID,
+            password=AP_PASSWORD,
+            security=4,  # WPA2-PSK (network.AUTH_WPA2_PSK not available on Pico W)
+            channel=AP_CHANNEL
+        )
 
         # Wait for AP to become active
         while not ap.active():

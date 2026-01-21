@@ -46,7 +46,7 @@ class WebServer:
 
         try:
             conn, addr = self.server_socket.accept()
-            conn.settimeout(2.0)
+            conn.settimeout(5.0)
 
             try:
                 request = conn.recv(1024).decode()
@@ -73,8 +73,7 @@ class WebServer:
                         conn.send(data[i:i+1024])
 
             except Exception as e:
-                if DEBUG_MODE:
-                    print(f"Request error: {e}")
+                pass  # Timeout or connection errors are normal
             finally:
                 conn.close()
 
