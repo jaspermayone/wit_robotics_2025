@@ -86,4 +86,4 @@ config/secrets.yaml
 *.ipynb_checkpoints/
 
 # Secrets (encrypted version committed as secrets.h.age)
-src/secrets.h
+src/config/secrets.h

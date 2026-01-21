@@ -21,23 +21,27 @@ pico_sdk_init()
 
 add_executable(${PROJECT_NAME}
     src/main.c
-    src/my_platform.c
-    src/motor.c
-    src/motor_controller.c
-    src/telemetry.c
-    src/wifi_ap.c
-    src/web_server.c
-    src/dhcpserver/dhcpserver.c
+    src/bluetooth/my_platform.c
+    src/hardware/motor.c
+    src/hardware/motor_controller.c
+    src/hardware/telemetry.c
+    src/networking/wifi_ap.c
+    src/networking/web_server.c
+    src/networking/dhcpserver/dhcpserver.c
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     src
-    src/dhcpserver
+    src/config
+    src/hardware
+    src/networking
+    src/networking/dhcpserver
+    src/bluetooth
     ${BLUEPAD32_ROOT}/src/components/bluepad32/include
 )
 
 # Needed for btstack_config.h / sdkconfig.h
-include_directories(${PROJECT_NAME} src)
+include_directories(${PROJECT_NAME} src/config)
 
 # Needed for BTstack includes
 include_directories(${BTSTACK_ROOT}/3rd-party/bluedroid/encoder/include)
