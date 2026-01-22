@@ -32,9 +32,11 @@ static void update_command_time(motor_controller_t* mc) {
 void motor_controller_init(motor_controller_t* mc) {
     printf("Initializing motor controller...\n");
 
-    // Initialize drive motors
-    motor_init(&mc->motor_left, PIN_MOTOR_LEFT, DRIVE_MIN_US, DRIVE_MID_US, DRIVE_MAX_US);
-    motor_init(&mc->motor_right, PIN_MOTOR_RIGHT, DRIVE_MIN_US, DRIVE_MID_US, DRIVE_MAX_US);
+    // Initialize drive motors (4WD tank drive)
+    motor_init(&mc->motor_left_front, PIN_MOTOR_LEFT_FRONT, DRIVE_MIN_US, DRIVE_MID_US, DRIVE_MAX_US);
+    motor_init(&mc->motor_left_back, PIN_MOTOR_LEFT_BACK, DRIVE_MIN_US, DRIVE_MID_US, DRIVE_MAX_US);
+    motor_init(&mc->motor_right_front, PIN_MOTOR_RIGHT_FRONT, DRIVE_MIN_US, DRIVE_MID_US, DRIVE_MAX_US);
+    motor_init(&mc->motor_right_back, PIN_MOTOR_RIGHT_BACK, DRIVE_MIN_US, DRIVE_MID_US, DRIVE_MAX_US);
 
     // Initialize weapon motor
     motor_init(&mc->weapon, PIN_WEAPON, WEAPON_MIN_US, WEAPON_MID_US, WEAPON_MAX_US);
@@ -47,17 +49,27 @@ void motor_controller_init(motor_controller_t* mc) {
     mc->last_command_time_ms = to_ms_since_boot(get_absolute_time());
     mc->failsafe_triggered = false;
 
-    // Start with everything stopped
-    motor_controller_stop_all(mc);
+    // Stop drive motors but arm weapon (no safety arming required)
+    motor_stop(&mc->motor_left_front, MOTOR_BIDIRECTIONAL);
+    motor_stop(&mc->motor_left_back, MOTOR_BIDIRECTIONAL);
+    motor_stop(&mc->motor_right_front, MOTOR_BIDIRECTIONAL);
+    motor_stop(&mc->motor_right_back, MOTOR_BIDIRECTIONAL);
+    mc->left_speed = 0;
+    mc->right_speed = 0;
 
-    printf("Motor controller ready (weapon DISARMED)\n");
+    // Auto-arm weapon
+    motor_controller_arm_weapon(mc);
+
+    printf("Motor controller ready (4WD tank drive, weapon ARMED)\n");
 }
 
 void motor_controller_set_left(motor_controller_t* mc, int speed) {
     speed = apply_deadband(speed);
     speed = clamp(speed, -MOTOR_MAX_SPEED, MOTOR_MAX_SPEED);
 
-    motor_set_speed(&mc->motor_left, speed, MOTOR_BIDIRECTIONAL);
+    // Drive both left motors together
+    motor_set_speed(&mc->motor_left_front, speed, MOTOR_BIDIRECTIONAL);
+    motor_set_speed(&mc->motor_left_back, speed, MOTOR_BIDIRECTIONAL);
     mc->left_speed = speed;
     update_command_time(mc);
 }
@@ -66,7 +78,9 @@ void motor_controller_set_right(motor_controller_t* mc, int speed) {
     speed = apply_deadband(speed);
     speed = clamp(speed, -MOTOR_MAX_SPEED, MOTOR_MAX_SPEED);
 
-    motor_set_speed(&mc->motor_right, speed, MOTOR_BIDIRECTIONAL);
+    // Drive both right motors together
+    motor_set_speed(&mc->motor_right_front, speed, MOTOR_BIDIRECTIONAL);
+    motor_set_speed(&mc->motor_right_back, speed, MOTOR_BIDIRECTIONAL);
     mc->right_speed = speed;
     update_command_time(mc);
 }
@@ -101,15 +115,10 @@ void motor_controller_arcade_drive(motor_controller_t* mc, int throttle, int tur
 }
 
 void motor_controller_set_weapon(motor_controller_t* mc, int speed) {
-    // Weapon only works if armed
-    if (!mc->weapon_armed) {
-        speed = 0;
-    }
-
     speed = clamp(speed, 0, MOTOR_MAX_SPEED);
 
-    // Weapon is typically unidirectional (forward only)
-    motor_set_speed(&mc->weapon, speed, false);
+    // Weapon uses same ESC type as drive motors
+    motor_set_speed(&mc->weapon, speed, MOTOR_BIDIRECTIONAL);
     mc->weapon_speed = speed;
     update_command_time(mc);
 }
@@ -126,7 +135,7 @@ void motor_controller_disarm_weapon(motor_controller_t* mc) {
     motor_disarm(&mc->weapon);
 
     // Stop weapon immediately
-    motor_set_speed(&mc->weapon, 0, false);
+    motor_set_speed(&mc->weapon, 0, MOTOR_BIDIRECTIONAL);
     mc->weapon_speed = 0;
 
     if (was_armed) {
@@ -139,9 +148,11 @@ bool motor_controller_is_weapon_armed(motor_controller_t* mc) {
 }
 
 void motor_controller_stop_all(motor_controller_t* mc) {
-    // Stop drive motors
-    motor_stop(&mc->motor_left, MOTOR_BIDIRECTIONAL);
-    motor_stop(&mc->motor_right, MOTOR_BIDIRECTIONAL);
+    // Stop all 4 drive motors
+    motor_stop(&mc->motor_left_front, MOTOR_BIDIRECTIONAL);
+    motor_stop(&mc->motor_left_back, MOTOR_BIDIRECTIONAL);
+    motor_stop(&mc->motor_right_front, MOTOR_BIDIRECTIONAL);
+    motor_stop(&mc->motor_right_back, MOTOR_BIDIRECTIONAL);
     mc->left_speed = 0;
     mc->right_speed = 0;
 

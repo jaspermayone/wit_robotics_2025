@@ -37,12 +37,14 @@ static bool g_motors_initialized = false;
 static uint32_t g_prev_buttons = 0;
 static uint8_t g_prev_misc_buttons = 0;
 
-// Arming requires holding LB+RB for 5 seconds
+// Arming requires holding Y for 5 seconds
 #define ARM_HOLD_TIME_MS  5000
+#define ARM_LOCKOUT_MS    1000  // Ignore Y presses for 1s after arming
 static uint32_t g_arm_hold_start = 0;
+static uint32_t g_arm_complete_time = 0;  // When arming finished
 static bool g_arm_hold_active = false;
 static int g_last_countdown = -1;  // Track last printed countdown number
-static bool g_bumpers_held = false;  // Track if LB+RB are currently held
+static bool g_y_held = false;  // Track if Y is currently held
 
 // Timer for arming countdown (runs independently of controller input)
 static struct repeating_timer g_arming_timer;
@@ -68,12 +70,13 @@ static void check_arming_countdown(void) {
 
     uint32_t now = to_ms_since_boot(get_absolute_time());
 
-    if (g_bumpers_held && g_arm_hold_active && !motor_controller_is_weapon_armed(&g_motors)) {
+    if (g_y_held && g_arm_hold_active && !motor_controller_is_weapon_armed(&g_motors)) {
         uint32_t held_time = now - g_arm_hold_start;
         int seconds_left = (ARM_HOLD_TIME_MS - held_time + 999) / 1000;  // Round up
 
         if (held_time >= ARM_HOLD_TIME_MS) {
             motor_controller_arm_weapon(&g_motors);
+            g_arm_complete_time = now;  // Start lockout period
             g_last_countdown = -1;
         } else if (seconds_left != g_last_countdown && seconds_left >= 0) {
             g_last_countdown = seconds_left;
@@ -124,38 +127,7 @@ static void process_controller_input(uni_gamepad_t* gp) {
     int weapon_speed = map_range(gp->throttle, 0, TRIGGER_MAX, 0, 100);
     motor_controller_set_weapon(&g_motors, weapon_speed);
 
-    // === WEAPON ARM/DISARM ===
-    // LB + RB held for 5 seconds → arm weapon (stays armed after release)
-    // LB + RB tap when armed → disarm weapon
-    bool lb_pressed = (gp->buttons & BUTTON_SHOULDER_L) != 0;
-    bool rb_pressed = (gp->buttons & BUTTON_SHOULDER_R) != 0;
-    bool both_held = lb_pressed && rb_pressed;
-
-    if (both_held && !g_bumpers_held) {
-        // Just started holding both bumpers
-        g_bumpers_held = true;
-        if (motor_controller_is_weapon_armed(&g_motors)) {
-            // Already armed - disarm immediately
-            motor_controller_disarm_weapon(&g_motors);
-        } else {
-            // Not armed - start arming sequence
-            g_arm_hold_start = to_ms_since_boot(get_absolute_time());
-            g_arm_hold_active = true;
-            g_last_countdown = (ARM_HOLD_TIME_MS / 1000) + 1;
-            printf("\n*** ARMING SEQUENCE ***\n");
-            printf("Hold LB+RB for %d seconds...\n", ARM_HOLD_TIME_MS / 1000);
-        }
-    } else if (!both_held && g_bumpers_held) {
-        // Released bumpers
-        g_bumpers_held = false;
-        if (!motor_controller_is_weapon_armed(&g_motors) && g_arm_hold_active) {
-            // Was trying to arm but released early
-            printf("Arming cancelled\n");
-        }
-        g_arm_hold_active = false;
-        g_last_countdown = -1;
-    }
-    // Note: countdown handled by check_arming_countdown() called from timer
+    // === WEAPON ACTIVE (no arming required) ===
 
     // === EMERGENCY STOP ===
     // Xbox button (system button) → emergency stop all
@@ -211,9 +183,13 @@ static void my_platform_on_init_complete(void) {
     printf("  Left Stick Y  : Left motor\n");
     printf("  Right Stick Y : Right motor\n");
     printf("  Right Trigger : Weapon speed\n");
-    printf("  LB + RB (5s)  : Arm weapon\n");
-    printf("  LB + RB (tap) : Disarm weapon (when armed)\n");
     printf("  Xbox Button   : Emergency stop\n");
+    // Wait for ESCs to arm (they need min throttle signal for ~3 seconds)
+    printf("\n");
+    printf("Waiting for ESCs to arm...\n");
+    sleep_ms(4000);
+    printf("ESCs armed!\n");
+
     printf("\n");
     printf("Waiting for Xbox controller...\n");
     printf("(Turn on controller or hold pair button)\n");
@@ -290,7 +266,7 @@ static void my_platform_on_device_disconnected(uni_hid_device_t* d) {
 static uni_error_t my_platform_on_device_ready(uni_hid_device_t* d) {
     printf("\n");
     printf("*** Controller ready - DRIVE ENABLED ***\n");
-    printf("(Weapon is DISARMED - press LB+RB to arm)\n");
+    printf("(Weapon ready - use right trigger)\n");
     printf("\n");
     return UNI_ERROR_SUCCESS;
 }

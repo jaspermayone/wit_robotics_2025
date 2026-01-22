@@ -4,6 +4,7 @@
 // =============================================================================
 
 #include "motor.h"
+#include "config.h"
 #include <stdio.h>
 #include "hardware/pwm.h"
 #include "hardware/clocks.h"
@@ -35,11 +36,12 @@ void motor_init(motor_t* motor, uint gpio_pin, uint16_t min_us, uint16_t mid_us,
     pwm_set_wrap(motor->slice_num, PWM_WRAP - 1);
     pwm_set_clkdiv(motor->slice_num, PWM_DIVIDER);
 
-    // Start with motor stopped (min pulse)
-    pwm_set_chan_level(motor->slice_num, motor->channel, min_us);
-
-    // Enable PWM
+    // Enable PWM first
     pwm_set_enabled(motor->slice_num, true);
+
+    // Start with minimum throttle for ESC arming
+    // Some bidirectional ESCs still need min_us at startup to arm
+    motor_set_pulse_us(motor, min_us);
 
     printf("Motor initialized on GPIO %d (slice %d, channel %d)\n",
            gpio_pin, motor->slice_num, motor->channel);
@@ -57,8 +59,21 @@ void motor_set_pulse_us(motor_t* motor, uint16_t us) {
         us = ESC_ABS_MAX_US;
     }
 
+    uint16_t level = us;
+#if MOTOR_INVERT_SIGNAL
+    // Invert signal if using inverting transistor
+    level = PWM_WRAP - us;
+#endif
+
+    // Debug: print pulse width changes
+    static uint16_t last_level[8] = {0};
+    if (level != last_level[motor->gpio_pin] && motor->gpio_pin < 8) {
+        printf("GPIO%d: %dus\n", motor->gpio_pin, us);
+        last_level[motor->gpio_pin] = level;
+    }
+
     // Set PWM level (with our config, level = microseconds directly)
-    pwm_set_chan_level(motor->slice_num, motor->channel, us);
+    pwm_set_chan_level(motor->slice_num, motor->channel, level);
 }
 
 void motor_set_throttle(motor_t* motor, float throttle) {

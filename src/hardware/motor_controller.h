@@ -17,8 +17,10 @@
 
 // Motor controller state
 typedef struct {
-    motor_t motor_left;
-    motor_t motor_right;
+    motor_t motor_left_front;
+    motor_t motor_left_back;
+    motor_t motor_right_front;
+    motor_t motor_right_back;
     motor_t weapon;
 
     // Current speeds (-100 to 100 for drive, 0 to 100 for weapon)
