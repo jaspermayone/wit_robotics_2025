@@ -32,14 +32,20 @@ static void update_command_time(motor_controller_t* mc) {
 void motor_controller_init(motor_controller_t* mc) {
     printf("Initializing motor controller...\n");
 
-    // Initialize drive motors (4WD tank drive)
-    motor_init(&mc->motor_left_front, PIN_MOTOR_LEFT_FRONT, DRIVE_MIN_US, DRIVE_MID_US, DRIVE_MAX_US);
-    motor_init(&mc->motor_left_back, PIN_MOTOR_LEFT_BACK, DRIVE_MIN_US, DRIVE_MID_US, DRIVE_MAX_US);
+    // Initialize motors (4WD tank drive + weapon)
+    motor_init(&mc->motor_left_front , PIN_MOTOR_LEFT_FRONT, DRIVE_MIN_US, DRIVE_MID_US, DRIVE_MAX_US);
+    motor_init(&mc->motor_left_back  , PIN_MOTOR_LEFT_BACK, DRIVE_MIN_US, DRIVE_MID_US, DRIVE_MAX_US);
     motor_init(&mc->motor_right_front, PIN_MOTOR_RIGHT_FRONT, DRIVE_MIN_US, DRIVE_MID_US, DRIVE_MAX_US);
-    motor_init(&mc->motor_right_back, PIN_MOTOR_RIGHT_BACK, DRIVE_MIN_US, DRIVE_MID_US, DRIVE_MAX_US);
-
-    // Initialize weapon motor
+    motor_init(&mc->motor_right_back , PIN_MOTOR_RIGHT_BACK, DRIVE_MIN_US, DRIVE_MID_US, DRIVE_MAX_US);
     motor_init(&mc->weapon, PIN_WEAPON, WEAPON_MIN_US, WEAPON_MID_US, WEAPON_MAX_US);
+
+    //Arm ESC
+    motor_set_pulse_us(&mc->motor_left_front , ARM_SEQUENCE_ONE);
+    motor_set_pulse_us(&mc->motor_left_back  , ARM_SEQUENCE_ONE);
+    motor_set_pulse_us(&mc->motor_right_front, ARM_SEQUENCE_ONE);
+    motor_set_pulse_us(&mc->motor_right_back , ARM_SEQUENCE_ONE);
+    motor_set_pulse_us(&mc->weapon , ARM_SEQUENCE_ONE);
+    sleep_ms(ARM_SEQUENCE_ONE_DELAY);
 
     // Initialize state
     mc->left_speed = 0;

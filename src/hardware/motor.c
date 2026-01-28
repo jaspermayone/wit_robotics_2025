@@ -39,14 +39,6 @@ void motor_init(motor_t* motor, uint gpio_pin, uint16_t min_us, uint16_t mid_us,
     // Enable PWM first
     pwm_set_enabled(motor->slice_num, true);
 
-    // ARMING SEQUENCE
-    // Some bidirectional ESCs still need min_us at startup to arm
-
-    motor_set_pulse_us(motor, ARM_SEQUENCE_ONE);
-    sleep_ms(ARM_SEQUENCE_ONE_DELAY);
-    motor_set_pulse_us(motor, ARM_SEQUENCE_TWO);
-    sleep_ms(ARM_SEQUENCE_TWO_DELAY);
-
     printf("Motor initialized on GPIO %d (slice %d, channel %d)\n",
            gpio_pin, motor->slice_num, motor->channel);
 }

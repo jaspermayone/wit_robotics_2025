@@ -46,9 +46,7 @@
 #define WEAPON_MAX_US       2000
 
 #define ARM_SEQUENCE_ONE    1480
-#define ARM_SEQUENCE_TWO    1550
-#define ARM_SEQUENCE_ONE_DELAY  5000
-#define ARM_SEQUENCE_TWO_DELAY  2000
+#define ARM_SEQUENCE_ONE_DELAY  4000
 
 // Motor Behavior
 #define MOTOR_BIDIRECTIONAL true   // Try unidirectional arming
