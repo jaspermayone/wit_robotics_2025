@@ -15,7 +15,7 @@
 // For 50Hz with good resolution: 125MHz / (wrap * divider) = 50Hz
 // Using wrap=20000 and divider=125 gives exactly 50Hz with 1us resolution
 #define PWM_WRAP     20000  // 20ms period = 50Hz
-#define PWM_DIVIDER  125.0f // Clock divider
+#define PWM_DIVIDER  150.0f // Clock divider
 
 void motor_init(motor_t* motor, uint gpio_pin, uint16_t min_us, uint16_t mid_us, uint16_t max_us) {
     motor->gpio_pin = gpio_pin;
@@ -39,9 +39,13 @@ void motor_init(motor_t* motor, uint gpio_pin, uint16_t min_us, uint16_t mid_us,
     // Enable PWM first
     pwm_set_enabled(motor->slice_num, true);
 
-    // Start with minimum throttle for ESC arming
+    // ARMING SEQUENCE
     // Some bidirectional ESCs still need min_us at startup to arm
-    motor_set_pulse_us(motor, min_us);
+
+    motor_set_pulse_us(motor, ARM_SEQUENCE_ONE);
+    sleep_ms(ARM_SEQUENCE_ONE_DELAY);
+    motor_set_pulse_us(motor, ARM_SEQUENCE_TWO);
+    sleep_ms(ARM_SEQUENCE_TWO_DELAY);
 
     printf("Motor initialized on GPIO %d (slice %d, channel %d)\n",
            gpio_pin, motor->slice_num, motor->channel);

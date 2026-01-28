@@ -57,6 +57,9 @@ void motor_controller_init(motor_controller_t* mc) {
     mc->left_speed = 0;
     mc->right_speed = 0;
 
+
+    sleep_ms(2000);
+
     // Auto-arm weapon
     motor_controller_arm_weapon(mc);
 

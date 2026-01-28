@@ -42,7 +42,7 @@ int main() {
     stdio_init_all();
 
     // Small delay to allow USB serial to connect
-    sleep_ms(1000);
+    sleep_ms(2000);
 
     printf("\n\n");
     printf("==================================================\n");

@@ -45,8 +45,13 @@
 #define WEAPON_MID_US       1500
 #define WEAPON_MAX_US       2000
 
+#define ARM_SEQUENCE_ONE    1480
+#define ARM_SEQUENCE_TWO    1550
+#define ARM_SEQUENCE_ONE_DELAY  5000
+#define ARM_SEQUENCE_TWO_DELAY  2000
+
 // Motor Behavior
-#define MOTOR_BIDIRECTIONAL false   // Try unidirectional arming
+#define MOTOR_BIDIRECTIONAL true   // Try unidirectional arming
 #define MOTOR_INVERT_SIGNAL false   // No inverting transistor on GPIO 0
 #define MOTOR_MAX_SPEED     100     // Maximum speed percentage
 #define MOTOR_DEADBAND      10      // Ignore inputs below this %
