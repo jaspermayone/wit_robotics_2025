@@ -1,0 +1,18 @@
+# Default owners for everything - software lead and co-lead(s)
+* @jaspermayone @Griffty
+
+# Documentation
+*.md @jaspermayone @Griffty
+
+# Build system and configuration
+CMakeLists.txt @jaspermayone
+*.cmake @jaspermayone
+build.* @jaspermayone
+flash.* @jaspermayone
+
+# Bluepad32 integration
+bluepad32/ @jaspermayone
+
+# Git configuration
+.gitignore @jaspermayone
+.gitmodules @jaspermayone
