@@ -13,6 +13,20 @@ flash.* @jaspermayone
 # Bluepad32 integration
 bluepad32/ @jaspermayone
 
+# Configuration files - must be reviewed by jaspermayone
+src/config/ @jaspermayone
+*config*.h @jaspermayone
+*config*.hpp @jaspermayone
+secrets.* @jaspermayone
+*.json @jaspermayone
+*.yaml @jaspermayone
+*.yml @jaspermayone
+*.toml @jaspermayone
+*.ini @jaspermayone
+*.env @jaspermayone
+.env* @jaspermayone
+
 # Git configuration
 .gitignore @jaspermayone
 .gitmodules @jaspermayone
+.github/ @jaspermayone
